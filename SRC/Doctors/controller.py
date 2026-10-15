@@ -56,7 +56,7 @@ def login(Body: DrLogin, db: Session):
 
     exp_time = datetime.now() + timedelta(minutes=settings.EXP_TIME)
     token = jwt.encode(
-        {"_id": is_user.id, "exp": exp_time},
+        {"id": is_user.dr_id, "exp": exp_time,"role":"doctor"},
         settings.SECRET_KEY,
         settings.ALGORITHM
     )

@@ -5,6 +5,7 @@ from sqlalchemy import pool
 from SRC.utils.settings import settings
 from SRC.Doctors.models import Doctor
 from SRC.Patients.models import Patient
+from SRC.Appointment.models import Appointment
 from SRC.utils.db import Base
 from alembic import context
 

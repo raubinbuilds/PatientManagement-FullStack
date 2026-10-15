@@ -56,9 +56,9 @@ def login(Body:LoginSchema, db: Session):
 
     exp_time = datetime.now() + timedelta(minutes=settings.EXP_TIME)
     token = jwt.encode(
-        {"_id": is_user.id, "exp": exp_time},
+        {"id": is_user.patient_id, "exp": exp_time,"role":"patient"},
         settings.SECRET_KEY,
-        settings.ALGORITHM
+        algorithm=settings.ALGORITHM
     )
     return {"token": token}
 
