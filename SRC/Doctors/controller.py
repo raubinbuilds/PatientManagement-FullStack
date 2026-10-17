@@ -7,9 +7,9 @@ from pwdlib import PasswordHash
 from SRC.utils.settings import settings
 from datetime import datetime, timedelta
 import jwt
-
+from SRC.utils.mailservice import send_email
 from jwt.exceptions import InvalidTokenError
-
+from SRC.OTP.models import OTP
 password_hash = PasswordHash.recommended()
 
 
@@ -22,6 +22,11 @@ def verify_password(plain_password, hashed_password):
 
 
 def register(Body: DrSchema, db: Session):
+    otp_record=db.query(OTP).filter(OTP.email==Body.email,OTP.purpose=="doctor-register").first()
+    if not otp_record or not otp_record.is_verified:
+        raise HTTPException(status_code=400,detail="You are not verified.Verify your email first")
+    db.delete(otp_record)
+    db.commit()
     is_user = db.query(Doctor).filter(Doctor.username == Body.username).first()
     if is_user:
         raise HTTPException(409, "User already exists")
@@ -42,7 +47,11 @@ def register(Body: DrSchema, db: Session):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+    send_email(
+        to_email=new_user.email,
+        subject="Doctor registration successfull",
+        body=f"Hello {new_user.name},your registration was successfull"
+    )
 
 
 def login(Body: DrLogin, db: Session):

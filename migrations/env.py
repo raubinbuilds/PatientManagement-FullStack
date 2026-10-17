@@ -8,6 +8,7 @@ from SRC.Patients.models import Patient
 from SRC.Appointment.models import Appointment
 from SRC.utils.db import Base
 from alembic import context
+from SRC.OTP.models import OTP
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
