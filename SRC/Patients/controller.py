@@ -29,13 +29,12 @@ def register(Body: patientSchema, db: Session):
     ).first()
 
 
-    if not otp_record or not otp_record.is_verified:
+    if (not otp_record or not otp_record.is_verified or datetime.now(timezone.utc) > otp_record.expires_at):
       raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="You are not verified. Verify your email first."
         )
-    db.delete(otp_record)
-    db.commit()
+    
     
     is_user = db.query(Patient).filter(Patient.username == Body.username).first()
     if is_user:
@@ -44,7 +43,8 @@ def register(Body: patientSchema, db: Session):
     is_user = db.query(Patient).filter(Patient.email == Body.email).first()
     if is_user:
         raise HTTPException(409, "Email already logged in")
-
+    db.delete(otp_record)
+    db.commit()
     hash_password = get_password_hash(Body.password)
     new_user = Patient(
         name=Body.name,
@@ -62,7 +62,7 @@ def register(Body: patientSchema, db: Session):
         subject="Patient registration successfull",
         body=f"Hello {new_user.name},your registration was successfull."
     )
-    return True
+    return new_user
 
 
 def login(Body:LoginSchema, db: Session):
@@ -84,26 +84,18 @@ def login(Body:LoginSchema, db: Session):
 
 
 
-def update(Body:LoginSchema, db: Session):
-    is_user = db.query(Patient).filter(
-        Patient.username == Body.username
-    ).first()
+def update(Body:PatientResponseSchema, patient:Patient,db: Session):
+    
 
-    if not is_user:
-        raise HTTPException(404, "User not found")
-
-    if not verify_password(Body.password, is_user.hash_password):
-        raise HTTPException(401, "Wrong password")
-
-    is_user.name = Body.name
-    is_user.Specialist = Body.Specialist
-    is_user.email = Body.email
-    is_user.mobile = Body.mobile
+    patient.name = Body.name
+    patient.Specialist = Body.Specialist
+    patient.email = Body.email
+    patient.mobile = Body.mobile
 
     db.commit()
-    db.refresh(is_user)
+    db.refresh(patient)
 
-    return is_user
+    return {"message": "Patient details updated successfully"}
 
 
 
@@ -122,13 +114,13 @@ def isAuthenticated(request: Request, db: Session):
             algorithms=[settings.ALGORITHM]
         )
 
-        user_id = data.get("_id")
+        user_id = data.get("id")
 
         if user_id is None:
             raise HTTPException(401, "Invalid token")
 
         user = db.query(Patient).filter(
-            Patient.id == user_id
+            Patient.patient_id == user_id
         ).first()
 
         if not user:

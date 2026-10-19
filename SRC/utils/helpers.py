@@ -16,13 +16,13 @@ def is_authenticated(
     try:
         token = request.headers.get("authorization")
 
-        if not token:
+        if not token or not token.startswith("Bearer "):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authorization token missing"
+                detail="Authorization token missing or invalid token"
             )
 
-        token = token.split(" ")[-1]
+        token = token.split(" ",1)[-1]
 
         data = jwt.decode(
             token,

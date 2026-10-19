@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, Request
 from pwdlib import PasswordHash
 from SRC.utils.settings import settings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 import jwt
 from SRC.utils.mailservice import send_email
 from jwt.exceptions import InvalidTokenError
@@ -23,10 +23,9 @@ def verify_password(plain_password, hashed_password):
 
 def register(Body: DrSchema, db: Session):
     otp_record=db.query(OTP).filter(OTP.email==Body.email,OTP.purpose=="doctor-register").first()
-    if not otp_record or not otp_record.is_verified:
+    if (not otp_record or not otp_record.is_verified or datetime.now(timezone.utc) > otp_record.expires_at):
         raise HTTPException(status_code=400,detail="You are not verified.Verify your email first")
-    db.delete(otp_record)
-    db.commit()
+    
     is_user = db.query(Doctor).filter(Doctor.username == Body.username).first()
     if is_user:
         raise HTTPException(409, "User already exists")
@@ -34,6 +33,8 @@ def register(Body: DrSchema, db: Session):
     is_user = db.query(Doctor).filter(Doctor.email == Body.email).first()
     if is_user:
         raise HTTPException(409, "Email already logged in")
+    db.delete(otp_record)
+    db.commit()
 
     hash_password = get_password_hash(Body.password)
     new_user = Doctor(
@@ -52,7 +53,7 @@ def register(Body: DrSchema, db: Session):
         subject="Doctor registration successfull",
         body=f"Hello {new_user.name},your registration was successfull"
     )
-
+    return new_user
 
 def login(Body: DrLogin, db: Session):
     is_user = db.query(Doctor).filter(Doctor.username == Body.username).first()
@@ -73,26 +74,18 @@ def login(Body: DrLogin, db: Session):
 
 
 
-def update(Body: DrSchema, db: Session):
-    is_user = db.query(Doctor).filter(
-        Doctor.username == Body.username
-    ).first()
+def update(Body: DrResponseSchema, doctor:Doctor,db:Session):
+    
 
-    if not is_user:
-        raise HTTPException(404, "User not found")
-
-    if not verify_password(Body.password, is_user.hash_password):
-        raise HTTPException(401, "Wrong password")
-
-    is_user.name = Body.name
-    is_user.Specialist = Body.Specialist
-    is_user.email = Body.email
-    is_user.mobile = Body.mobile
+    doctor.name = Body.name
+    doctor.Specialist = Body.Specialist
+    doctor.email = Body.email
+    doctor.mobile = Body.mobile
 
     db.commit()
-    db.refresh(is_user)
+    db.refresh(doctor)
 
-    return is_user
+    return  {"message": "Doctor details updated successfully"}
 
 
 
@@ -111,13 +104,13 @@ def isAuthenticated(request: Request, db: Session):
             algorithms=[settings.ALGORITHM]
         )
 
-        user_id = data.get("_id")
+        user_id = data.get("id")
 
         if user_id is None:
             raise HTTPException(401, "Invalid token")
 
         user = db.query(Doctor).filter(
-            Doctor.id == user_id
+            Doctor.dr_id == user_id
         ).first()
 
         if not user:
